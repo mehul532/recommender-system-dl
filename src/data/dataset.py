@@ -13,6 +13,13 @@ import pandas as pd
 RATINGS_FILENAME = "ratings.dat"
 MOVIES_FILENAME = "movies.dat"
 USERS_FILENAME = "users.dat"
+PROCESSED_RATINGS_TRAIN_FILENAME = "ratings_train.csv"
+PROCESSED_RATINGS_VAL_FILENAME = "ratings_val.csv"
+PROCESSED_RATINGS_TEST_FILENAME = "ratings_test.csv"
+PROCESSED_USERS_FILENAME = "users.csv"
+PROCESSED_MOVIES_FILENAME = "movies.csv"
+PROCESSED_GENRE_FEATURES_FILENAME = "movie_genre_features.csv"
+PROCESSED_METADATA_FILENAME = "metadata.json"
 
 
 @dataclass(frozen=True)
@@ -27,6 +34,19 @@ class DatasetConfig:
         """Backward-compatible alias for the raw data directory."""
 
         return self.raw_dir
+
+
+@dataclass(frozen=True)
+class ProcessedMovieLensData:
+    """Processed MovieLens tables loaded from disk."""
+
+    ratings_train: pd.DataFrame
+    ratings_val: pd.DataFrame
+    ratings_test: pd.DataFrame
+    users: pd.DataFrame
+    movies: pd.DataFrame
+    genre_features: pd.DataFrame
+    metadata: dict[str, object]
 
 
 def load_ratings(config: DatasetConfig | None = None) -> pd.DataFrame:
@@ -186,6 +206,117 @@ def preprocess_movielens_1m(
     }
 
 
+def load_processed_movielens(
+    config: DatasetConfig | None = None,
+) -> ProcessedMovieLensData:
+    """Load processed MovieLens tables from disk."""
+
+    active_config = config or DatasetConfig()
+    missing_files = _missing_processed_files(active_config.processed_dir)
+    if missing_files:
+        missing_display = ", ".join(missing_files)
+        raise FileNotFoundError(
+            f"Missing processed MovieLens files in {active_config.processed_dir}: "
+            f"{missing_display}"
+        )
+
+    metadata_path = active_config.processed_dir / PROCESSED_METADATA_FILENAME
+    with metadata_path.open("r", encoding="utf-8") as metadata_file:
+        metadata = json.load(metadata_file)
+
+    ratings_dtype = {
+        "user_id": "int64",
+        "movie_id": "int64",
+        "rating": "float32",
+        "timestamp": "int64",
+        "user_idx": "int64",
+        "movie_idx": "int64",
+    }
+    users_dtype = {
+        "user_id": "int64",
+        "gender": "string",
+        "age": "int64",
+        "occupation": "int64",
+        "zip_code": "string",
+        "user_idx": "int64",
+    }
+    movies_dtype = {
+        "movie_id": "int64",
+        "title": "string",
+        "genres": "string",
+        "movie_idx": "int64",
+    }
+
+    ratings_train = pd.read_csv(
+        active_config.processed_dir / PROCESSED_RATINGS_TRAIN_FILENAME,
+        dtype=ratings_dtype,
+    )
+    ratings_val = pd.read_csv(
+        active_config.processed_dir / PROCESSED_RATINGS_VAL_FILENAME,
+        dtype=ratings_dtype,
+    )
+    ratings_test = pd.read_csv(
+        active_config.processed_dir / PROCESSED_RATINGS_TEST_FILENAME,
+        dtype=ratings_dtype,
+    )
+    users = pd.read_csv(
+        active_config.processed_dir / PROCESSED_USERS_FILENAME,
+        dtype=users_dtype,
+        keep_default_na=False,
+    )
+    movies = pd.read_csv(
+        active_config.processed_dir / PROCESSED_MOVIES_FILENAME,
+        dtype=movies_dtype,
+        keep_default_na=False,
+    )
+    genre_features = pd.read_csv(
+        active_config.processed_dir / PROCESSED_GENRE_FEATURES_FILENAME
+    )
+
+    genre_feature_columns = [
+        column
+        for column in metadata.get("genre_feature_columns", [])
+        if column not in {"movie_id", "movie_idx"}
+    ]
+    if not genre_feature_columns:
+        genre_feature_columns = [
+            column
+            for column in genre_features.columns
+            if column not in {"movie_id", "movie_idx"}
+        ]
+
+    genre_features = genre_features.astype(
+        {
+            "movie_id": "int64",
+            "movie_idx": "int64",
+            **{column: "int8" for column in genre_feature_columns},
+        }
+    )
+
+    return ProcessedMovieLensData(
+        ratings_train=ratings_train,
+        ratings_val=ratings_val,
+        ratings_test=ratings_test,
+        users=users,
+        movies=movies,
+        genre_features=genre_features,
+        metadata=metadata,
+    )
+
+
+def ensure_processed_movielens(
+    config: DatasetConfig | None = None,
+) -> ProcessedMovieLensData:
+    """Load processed data, running preprocessing first when needed."""
+
+    active_config = config or DatasetConfig()
+    missing_files = _missing_processed_files(active_config.processed_dir)
+    if missing_files:
+        print("Processed MovieLens data not found. Running preprocessing first.")
+        preprocess_movielens_1m(active_config)
+    return load_processed_movielens(active_config)
+
+
 def _require_file(path: Path) -> Path:
     """Ensure an expected raw dataset file exists."""
 
@@ -196,6 +327,25 @@ def _require_file(path: Path) -> Path:
             "under data/raw/ml-1m/."
         )
     return path
+
+
+def _missing_processed_files(processed_dir: Path) -> list[str]:
+    """Return the names of required processed files that are missing."""
+
+    required_filenames = [
+        PROCESSED_RATINGS_TRAIN_FILENAME,
+        PROCESSED_RATINGS_VAL_FILENAME,
+        PROCESSED_RATINGS_TEST_FILENAME,
+        PROCESSED_USERS_FILENAME,
+        PROCESSED_MOVIES_FILENAME,
+        PROCESSED_GENRE_FEATURES_FILENAME,
+        PROCESSED_METADATA_FILENAME,
+    ]
+    return [
+        filename
+        for filename in required_filenames
+        if not (processed_dir / filename).exists()
+    ]
 
 
 def _validate_rating_references(

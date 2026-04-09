@@ -27,6 +27,7 @@ models/*
 !models/.gitkeep
 reports/*
 !reports/.gitkeep
+!reports/baseline_metrics.json
 
 # Dataset outputs
 data/raw/*
