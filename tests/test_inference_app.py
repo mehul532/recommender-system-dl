@@ -72,6 +72,10 @@ def test_deep_and_hybrid_recommendations_load_checkpoints(tmp_path, monkeypatch)
 def test_model_availability_and_metric_helpers(tmp_path, monkeypatch) -> None:
     """App helpers should expose model availability and saved metrics cleanly."""
 
+    dataset_config = _write_demo_movielens_files(tmp_path)
+    preprocess_movielens_1m(dataset_config)
+    data = load_processed_movielens(dataset_config)
+
     deep_checkpoint = tmp_path / "models" / "deep_recommender.pt"
     deep_checkpoint.parent.mkdir(parents=True, exist_ok=True)
     deep_checkpoint.write_bytes(b"checkpoint")
@@ -108,11 +112,33 @@ def test_model_availability_and_metric_helpers(tmp_path, monkeypatch) -> None:
         },
     }
     rmse_table = streamlit_app._build_rmse_table(comparison_report)
-    assert rmse_table["model"].tolist() == [
+    assert rmse_table["Model"].tolist() == [
         "Baseline User-Item Bias",
-        "Deep Model",
         "Hybrid Model",
+        "Deep Model",
     ]
+    assert list(rmse_table.columns) == [
+        "Model",
+        "Validation RMSE",
+        "Test RMSE",
+    ]
+    assert rmse_table["Validation RMSE"].tolist() == ["0.9100", "0.9150", "0.9200"]
+    assert rmse_table["Test RMSE"].tolist() == ["0.9300", "0.9320", "0.9400"]
+
+    best_model_summary = streamlit_app._build_best_model_summary(
+        {
+            "best_model": {
+                "validation": "baseline_user_item_bias",
+                "test": "baseline_user_item_bias",
+            }
+        }
+    )
+    assert best_model_summary == "Baseline User-Item Bias on validation and test."
+
+    user_profile = streamlit_app._build_user_profile(data, user_id=1)
+    assert user_profile["gender_label"] == "Female"
+    assert user_profile["age_label"] == "25-34"
+    assert user_profile["occupation_label"] == "K-12 student"
 
     baseline_metrics = streamlit_app._build_selected_model_metrics(
         selected_model_family="baseline_popularity",
@@ -129,6 +155,27 @@ def test_model_availability_and_metric_helpers(tmp_path, monkeypatch) -> None:
     )
     assert baseline_metrics is not None
     assert baseline_metrics["validation_value"] == "0.0400"
+
+    recommendation_table = streamlit_app._build_recommendation_table(
+        data=data,
+        recommendations=[
+            Recommendation(movie_id=5, score=12.0),
+            Recommendation(movie_id=6, score=10.0),
+        ],
+        model_family="baseline_popularity",
+    )
+    assert list(recommendation_table.columns) == [
+        "Rank",
+        "Movie ID",
+        "Title",
+        "Genres",
+        "Popularity Score",
+    ]
+    assert recommendation_table["Popularity Score"].tolist() == ["12", "10"]
+    assert recommendation_table["Genres"].tolist() == [
+        "Action • Crime • Thriller",
+        "Action • Adventure • Thriller • Sci-Fi",
+    ]
 
 
 def test_run_app_smoke(tmp_path, monkeypatch) -> None:
@@ -169,8 +216,10 @@ def test_run_app_smoke(tmp_path, monkeypatch) -> None:
     assert fake_streamlit.errors == []
     assert len(fake_streamlit.dataframes) >= 2
     recommendation_frame = fake_streamlit.dataframes[-1]
-    assert recommendation_frame["movie_id"].tolist() == [5, 6]
-    assert "popularity_score" in recommendation_frame.columns
+    assert recommendation_frame["Movie ID"].tolist() == [5, 6]
+    assert "Popularity Score" in recommendation_frame.columns
+    assert any("Best Saved RMSE" in entry for entry in fake_streamlit.markdowns)
+    assert any("Recommendations exclude movies the user has already rated" in entry for entry in fake_streamlit.captions)
 
 
 def _train_demo_checkpoints(tmp_path, data) -> tuple:
@@ -293,10 +342,30 @@ def _write_demo_movielens_files(tmp_path) -> DatasetConfig:
 class FakeColumn:
     """Minimal Streamlit column stub for smoke testing."""
 
+    parent: "FakeStreamlit"
     metrics: list[tuple[str, object]] = field(default_factory=list)
+    captions: list[str] = field(default_factory=list)
+    markdowns: list[str] = field(default_factory=list)
 
     def metric(self, label, value) -> None:
         self.metrics.append((label, value))
+
+    def caption(self, label) -> None:
+        self.captions.append(str(label))
+        self.parent.caption(label)
+
+    def markdown(self, value) -> None:
+        self.markdowns.append(str(value))
+        self.parent.markdown(value)
+
+    def warning(self, message) -> None:
+        self.parent.warning(message)
+
+    def dataframe(self, frame, **kwargs) -> None:
+        self.parent.dataframe(frame, **kwargs)
+
+    def columns(self, count):
+        return self.parent.columns(count)
 
 
 @dataclass
@@ -328,6 +397,8 @@ class FakeStreamlit:
     dataframes: list[pd.DataFrame] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    captions: list[str] = field(default_factory=list)
+    markdowns: list[str] = field(default_factory=list)
 
     def cache_data(self, show_spinner=False):
         _ = show_spinner
@@ -347,13 +418,16 @@ class FakeStreamlit:
         return None
 
     def caption(self, _label) -> None:
-        return None
+        self.captions.append(str(_label))
 
     def subheader(self, _label) -> None:
         return None
 
     def write(self, _value) -> None:
         return None
+
+    def markdown(self, value) -> None:
+        self.markdowns.append(str(value))
 
     def warning(self, message) -> None:
         self.warnings.append(str(message))
@@ -366,4 +440,4 @@ class FakeStreamlit:
         self.dataframes.append(frame.copy())
 
     def columns(self, count):
-        return [FakeColumn() for _ in range(count)]
+        return [FakeColumn(parent=self) for _ in range(count)]

@@ -32,6 +32,42 @@ REPORT_PATHS = {
     "deep": Path("reports/deep_model_metrics.json"),
     "hybrid": Path("reports/hybrid_model_metrics.json"),
 }
+GENDER_LABELS = {
+    "F": "Female",
+    "M": "Male",
+}
+AGE_LABELS = {
+    1: "Under 18",
+    18: "18-24",
+    25: "25-34",
+    35: "35-44",
+    45: "45-49",
+    50: "50-55",
+    56: "56+",
+}
+OCCUPATION_LABELS = {
+    0: "Other / not specified",
+    1: "Academic / educator",
+    2: "Artist",
+    3: "Clerical / admin",
+    4: "College / grad student",
+    5: "Customer service",
+    6: "Doctor / health care",
+    7: "Executive / managerial",
+    8: "Farmer",
+    9: "Homemaker",
+    10: "K-12 student",
+    11: "Lawyer",
+    12: "Programmer",
+    13: "Retired",
+    14: "Sales / marketing",
+    15: "Scientist",
+    16: "Self-employed",
+    17: "Technician / engineer",
+    18: "Tradesman / craftsman",
+    19: "Unemployed",
+    20: "Writer",
+}
 
 
 def run_app(streamlit_module: Any | None = None) -> None:
@@ -56,7 +92,10 @@ def run_app(streamlit_module: Any | None = None) -> None:
 
     st.set_page_config(page_title="MovieLens Recommender Demo", layout="wide")
     st.title("MovieLens Recommender Demo")
-    st.caption("Compare baseline popularity, deep, and hybrid recommendations.")
+    st.caption(
+        "Recommendations exclude movies the user has already rated and compare "
+        "baseline, deep, and hybrid results on saved MovieLens 1M metrics."
+    )
 
     try:
         data = load_processed_data()
@@ -79,7 +118,7 @@ def run_app(streamlit_module: Any | None = None) -> None:
         st.sidebar.info("\n".join(unavailable_messages))
 
     selected_model_family = st.sidebar.selectbox(
-        "Model family",
+        "Model",
         options=available_models,
         format_func=lambda family: MODEL_LABELS[family],
     )
@@ -92,17 +131,25 @@ def run_app(streamlit_module: Any | None = None) -> None:
             help="Type in the select box to search for a user ID.",
         )
     )
-    top_k = int(st.sidebar.slider("Number of recommendations", 5, 20, 10))
+    top_k = int(st.sidebar.slider("Top N", 5, 20, 10))
 
     user_profile = _build_user_profile(data, selected_user_id)
-    _render_user_summary(st, user_profile)
-    _render_metrics_panel(
-        st=st,
-        comparison_report=comparison_report,
+    left_column, right_column = st.columns(2)
+    _render_user_summary(left_column, user_profile)
+
+    selected_metrics = _build_selected_model_metrics(
+        selected_model_family=selected_model_family,
         baseline_report=baseline_report,
         deep_report=deep_report,
         hybrid_report=hybrid_report,
-        selected_model_family=selected_model_family,
+    )
+    _render_selected_model_metrics(
+        left_column,
+        selected_metrics=selected_metrics,
+    )
+    _render_metrics_panel(
+        right_column,
+        comparison_report=comparison_report,
     )
 
     try:
@@ -121,7 +168,10 @@ def run_app(streamlit_module: Any | None = None) -> None:
         st.error(str(exc))
         return
 
-    st.subheader("Top Recommendations")
+    st.markdown("#### Top Recommendations")
+    st.caption(
+        "Popularity uses train interaction counts. Deep and hybrid scores are predicted ratings."
+    )
     if not recommendations:
         st.warning("No unseen movies are available for this user.")
         return
@@ -197,62 +247,92 @@ def _build_user_profile(
     user_row = matched_user.iloc[0]
     return {
         "user_id": int(user_row["user_id"]),
-        "gender": str(user_row["gender"]),
-        "age": int(user_row["age"]),
-        "occupation": int(user_row["occupation"]),
+        "gender_label": _gender_label(str(user_row["gender"])),
+        "age_label": _age_label(int(user_row["age"])),
+        "occupation_label": _occupation_label(int(user_row["occupation"])),
         "rated_movies": rating_count,
     }
 
 
-def _render_user_summary(st: Any, user_profile: dict[str, int | str]) -> None:
-    """Render a compact user summary block."""
+def _gender_label(gender_code: str) -> str:
+    """Return a human-readable label for a gender code."""
 
-    st.subheader("Selected User")
-    columns = st.columns(4)
-    columns[0].metric("User ID", int(user_profile["user_id"]))
-    columns[1].metric("Gender", str(user_profile["gender"]))
-    columns[2].metric("Age Bucket", int(user_profile["age"]))
-    columns[3].metric("Occupation", int(user_profile["occupation"]))
-    st.caption(f"Movies already rated: {user_profile['rated_movies']}")
+    return GENDER_LABELS.get(gender_code, gender_code)
+
+
+def _age_label(age_code: int) -> str:
+    """Return a human-readable label for a MovieLens age bucket."""
+
+    return AGE_LABELS.get(age_code, f"Age {age_code}")
+
+
+def _occupation_label(occupation_code: int) -> str:
+    """Return a human-readable label for a MovieLens occupation code."""
+
+    return OCCUPATION_LABELS.get(occupation_code, f"Occupation {occupation_code}")
+
+
+def _model_display_name(model_name: str) -> str:
+    """Return a human-readable label for model and report identifiers."""
+
+    labels = {
+        "baseline_popularity": "Baseline Popularity",
+        "baseline_user_item_bias": "Baseline User-Item Bias",
+        "deep": "Deep Model",
+        "deep_model": "Deep Model",
+        "hybrid": "Hybrid Model",
+        "hybrid_model": "Hybrid Model",
+    }
+    return labels.get(model_name, model_name.replace("_", " ").title())
+
+
+def _render_user_summary(container: Any, user_profile: dict[str, int | str]) -> None:
+    """Render a compact, readable user summary block."""
+
+    container.markdown("#### User Snapshot")
+    metric_columns = container.columns(2)
+    metric_columns[0].metric("User ID", int(user_profile["user_id"]))
+    metric_columns[1].metric("Rated Movies", int(user_profile["rated_movies"]))
+    container.markdown(
+        f"**{user_profile['gender_label']}**  •  "
+        f"**{user_profile['age_label']}**  •  "
+        f"**{user_profile['occupation_label']}**"
+    )
 
 
 def _render_metrics_panel(
-    st: Any,
+    container: Any,
     comparison_report: dict[str, object] | None,
-    baseline_report: dict[str, object] | None,
-    deep_report: dict[str, object] | None,
-    hybrid_report: dict[str, object] | None,
-    selected_model_family: str,
 ) -> None:
-    """Render the saved report metrics section."""
+    """Render the saved RMSE comparison section."""
 
-    st.subheader("Saved Metrics")
+    container.markdown("#### Model Performance")
 
     if comparison_report is None:
-        st.warning("Comparison report is missing. Run the training pipelines first.")
-    else:
-        rmse_table = _build_rmse_table(comparison_report)
-        st.dataframe(rmse_table, use_container_width=True, hide_index=True)
-        best_model = comparison_report.get("best_model", {})
-        if isinstance(best_model, dict) and best_model:
-            st.caption(
-                "Best RMSE models: "
-                f"validation = {best_model.get('validation', 'n/a')}, "
-                f"test = {best_model.get('test', 'n/a')}"
-            )
-
-    selected_metrics = _build_selected_model_metrics(
-        selected_model_family=selected_model_family,
-        baseline_report=baseline_report,
-        deep_report=deep_report,
-        hybrid_report=hybrid_report,
-    )
-    if selected_metrics is None:
-        st.warning("Selected-model metrics are not available yet.")
+        container.warning("Comparison report is missing. Run the training pipelines first.")
         return
 
-    st.write(f"**{selected_metrics['title']}**")
-    metric_columns = st.columns(2)
+    best_model_summary = _build_best_model_summary(comparison_report)
+    if best_model_summary is not None:
+        container.markdown(f"**Best Saved RMSE**  \n{best_model_summary}")
+
+    rmse_table = _build_rmse_table(comparison_report)
+    container.dataframe(rmse_table, use_container_width=True, hide_index=True)
+
+
+def _render_selected_model_metrics(
+    container: Any,
+    selected_metrics: dict[str, str] | None,
+) -> None:
+    """Render the selected-model metrics block."""
+
+    container.markdown("#### Selected Model")
+    if selected_metrics is None:
+        container.warning("Selected-model metrics are not available yet.")
+        return
+
+    container.markdown(f"**{selected_metrics['title']}**")
+    metric_columns = container.columns(2)
     metric_columns[0].metric(
         selected_metrics["validation_label"],
         selected_metrics["validation_value"],
@@ -264,7 +344,26 @@ def _render_metrics_panel(
 
     checkpoint_path = selected_metrics.get("checkpoint_path")
     if checkpoint_path:
-        st.caption(f"Checkpoint: {checkpoint_path}")
+        container.caption(f"Checkpoint: {checkpoint_path}")
+
+
+def _build_best_model_summary(
+    comparison_report: dict[str, object],
+) -> str | None:
+    """Create a readable best-model summary from the saved comparison report."""
+
+    best_model = comparison_report.get("best_model", {})
+    if not isinstance(best_model, dict) or not best_model:
+        return None
+
+    validation_model = _model_display_name(str(best_model.get("validation", "n/a")))
+    test_model = _model_display_name(str(best_model.get("test", "n/a")))
+    if validation_model == test_model:
+        return f"{validation_model} on validation and test."
+    return (
+        f"Validation: {validation_model}. "
+        f"Test: {test_model}."
+    )
 
 
 def _build_rmse_table(comparison_report: dict[str, object]) -> pd.DataFrame:
@@ -272,27 +371,33 @@ def _build_rmse_table(comparison_report: dict[str, object]) -> pd.DataFrame:
 
     rows: list[dict[str, object]] = []
     for model_family in comparison_report.get("available_models", []):
-        if model_family == "baseline_user_item_bias":
-            display_name = "Baseline User-Item Bias"
-        elif model_family == "deep_model":
-            display_name = "Deep Model"
-        elif model_family == "hybrid_model":
-            display_name = "Hybrid Model"
-        else:
-            display_name = str(model_family)
-
+        display_name = _model_display_name(str(model_family))
         model_metrics = comparison_report.get(model_family, {})
         if not isinstance(model_metrics, dict):
             continue
         rows.append(
             {
-                "model": display_name,
-                "validation_rmse": float(model_metrics["validation_rmse"]),
-                "test_rmse": float(model_metrics["test_rmse"]),
+                "Model": display_name,
+                "_validation_rmse": float(model_metrics["validation_rmse"]),
+                "_test_rmse": float(model_metrics["test_rmse"]),
             }
         )
 
-    return pd.DataFrame(rows)
+    rmse_frame = pd.DataFrame(rows)
+    if rmse_frame.empty:
+        return rmse_frame
+
+    rmse_frame = rmse_frame.sort_values(
+        ["_validation_rmse", "_test_rmse", "Model"],
+        ascending=[True, True, True],
+    ).reset_index(drop=True)
+    rmse_frame["Validation RMSE"] = rmse_frame["_validation_rmse"].map(
+        lambda value: f"{value:.4f}"
+    )
+    rmse_frame["Test RMSE"] = rmse_frame["_test_rmse"].map(
+        lambda value: f"{value:.4f}"
+    )
+    return rmse_frame[["Model", "Validation RMSE", "Test RMSE"]]
 
 
 def _build_selected_model_metrics(
@@ -364,17 +469,41 @@ def _build_recommendation_table(
         on="movie_id",
         how="left",
     )
+    recommendation_frame["genres"] = recommendation_frame["genres"].map(_format_genres)
 
     score_column = (
-        "popularity_score"
+        "Popularity Score"
         if model_family == "baseline_popularity"
-        else "predicted_rating"
+        else "Predicted Rating"
     )
-    recommendation_frame[score_column] = recommendation_frame.pop("score")
+    if model_family == "baseline_popularity":
+        recommendation_frame[score_column] = recommendation_frame.pop("score").map(
+            lambda value: f"{int(round(value))}"
+        )
+    else:
+        recommendation_frame[score_column] = recommendation_frame.pop("score").map(
+            lambda value: f"{value:.3f}"
+        )
 
+    recommendation_frame = recommendation_frame.rename(
+        columns={
+            "rank": "Rank",
+            "movie_id": "Movie ID",
+            "title": "Title",
+            "genres": "Genres",
+        }
+    )
     return recommendation_frame[
-        ["rank", "movie_id", "title", "genres", score_column]
+        ["Rank", "Movie ID", "Title", "Genres", score_column]
     ]
+
+
+def _format_genres(genres: str) -> str:
+    """Convert a pipe-delimited genre string into a friendlier display value."""
+
+    if pd.isna(genres) or not genres:
+        return ""
+    return " • ".join(part.strip() for part in str(genres).split("|") if part.strip())
 
 
 if __name__ == "__main__":
