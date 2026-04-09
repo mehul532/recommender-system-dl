@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from math import sqrt
 from pathlib import Path
 
 import pandas as pd
@@ -14,23 +15,39 @@ from torch.utils.data import DataLoader, TensorDataset
 class RatingMLP(nn.Module):
     """Embed users and movies, then predict ratings with a small MLP."""
 
-    def __init__(self, num_users: int, num_movies: int, embedding_dim: int, hidden_dim: int):
+    def __init__(
+        self,
+        num_users: int,
+        num_movies: int,
+        embedding_dim: int,
+        hidden_dim: int,
+        dropout: float,
+    ):
         super().__init__()
         self.user_embedding = nn.Embedding(num_users, embedding_dim)
         self.movie_embedding = nn.Embedding(num_movies, embedding_dim)
+        self.user_bias = nn.Embedding(num_users, 1)
+        self.movie_bias = nn.Embedding(num_movies, 1)
+        self.global_bias = nn.Parameter(torch.zeros(1))
         self.mlp = nn.Sequential(
             nn.Linear(embedding_dim * 2, hidden_dim),
             nn.ReLU(),
+            nn.Dropout(dropout),
             nn.Linear(hidden_dim, 1),
         )
 
-    def forward(self, user_indices: torch.Tensor, movie_indices: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, user_indices: torch.Tensor, movie_indices: torch.Tensor
+    ) -> torch.Tensor:
         """Predict raw ratings for a batch of user and movie indices."""
 
         user_vectors = self.user_embedding(user_indices)
         movie_vectors = self.movie_embedding(movie_indices)
         features = torch.cat([user_vectors, movie_vectors], dim=1)
-        return self.mlp(features).squeeze(1)
+        mlp_score = self.mlp(features).squeeze(1)
+        user_bias = self.user_bias(user_indices).squeeze(1)
+        movie_bias = self.movie_bias(movie_indices).squeeze(1)
+        return self.global_bias + user_bias + movie_bias + mlp_score
 
 
 @dataclass
@@ -41,8 +58,10 @@ class DeepRecommender:
     num_movies: int
     embedding_dim: int = 64
     hidden_dim: int = 128
+    dropout: float = 0.1
     batch_size: int = 1024
-    epochs: int = 5
+    epochs: int = 10
+    early_stopping_patience: int = 2
     learning_rate: float = 1e-3
     weight_decay: float = 1e-5
     min_rating: float = 1.0
@@ -52,6 +71,7 @@ class DeepRecommender:
     training_history: list[dict[str, float | int]] = field(default_factory=list)
     best_epoch: int = 0
     best_validation_rmse: float = float("inf")
+    stopped_early: bool = False
 
     def __post_init__(self) -> None:
         """Initialize the torch model and device."""
@@ -63,6 +83,7 @@ class DeepRecommender:
             num_movies=self.num_movies,
             embedding_dim=self.embedding_dim,
             hidden_dim=self.hidden_dim,
+            dropout=self.dropout,
         ).to(self.device)
 
     def fit(self, train_ratings: pd.DataFrame, val_ratings: pd.DataFrame) -> "DeepRecommender":
@@ -82,6 +103,8 @@ class DeepRecommender:
         self.training_history = []
         self.best_epoch = 0
         self.best_validation_rmse = float("inf")
+        self.stopped_early = False
+        epochs_without_improvement = 0
 
         for epoch in range(1, self.epochs + 1):
             self.model.train()
@@ -108,13 +131,19 @@ class DeepRecommender:
                 }
             )
 
-            if validation_rmse < self.best_validation_rmse:
+            if validation_rmse < self.best_validation_rmse - 1e-6:
                 self.best_validation_rmse = validation_rmse
                 self.best_epoch = epoch
+                epochs_without_improvement = 0
                 best_state_dict = {
                     key: value.detach().cpu().clone()
                     for key, value in self.model.state_dict().items()
                 }
+            else:
+                epochs_without_improvement += 1
+                if epochs_without_improvement >= self.early_stopping_patience:
+                    self.stopped_early = True
+                    break
 
         if best_state_dict is not None:
             self.model.load_state_dict(best_state_dict)
@@ -152,8 +181,10 @@ class DeepRecommender:
                     "num_movies": self.num_movies,
                     "embedding_dim": self.embedding_dim,
                     "hidden_dim": self.hidden_dim,
+                    "dropout": self.dropout,
                     "batch_size": self.batch_size,
                     "epochs": self.epochs,
+                    "early_stopping_patience": self.early_stopping_patience,
                     "learning_rate": self.learning_rate,
                     "weight_decay": self.weight_decay,
                     "min_rating": self.min_rating,
@@ -162,6 +193,7 @@ class DeepRecommender:
                 },
                 "best_epoch": self.best_epoch,
                 "best_validation_rmse": self.best_validation_rmse,
+                "stopped_early": self.stopped_early,
                 "training_history": self.training_history,
             },
             checkpoint_path,
@@ -184,8 +216,10 @@ class DeepRecommender:
             num_movies=num_movies,
             embedding_dim=int(config["embedding_dim"]),
             hidden_dim=int(config["hidden_dim"]),
+            dropout=float(config.get("dropout", 0.1)),
             batch_size=int(config["batch_size"]),
             epochs=int(config["epochs"]),
+            early_stopping_patience=int(config.get("early_stopping_patience", 2)),
             learning_rate=float(config["learning_rate"]),
             weight_decay=float(config["weight_decay"]),
             min_rating=float(config["min_rating"]),
@@ -197,6 +231,7 @@ class DeepRecommender:
         model.best_validation_rmse = float(
             checkpoint.get("best_validation_rmse", float("inf"))
         )
+        model.stopped_early = bool(checkpoint.get("stopped_early", False))
         model.training_history = list(checkpoint.get("training_history", []))
         model.model.eval()
         return model
@@ -229,4 +264,4 @@ class DeepRecommender:
         if predictions.empty:
             return 0.0
         errors = ratings["rating"].astype("float64") - predictions
-        return float(torch.sqrt(torch.tensor((errors**2).mean())).item())
+        return float(sqrt(float((errors**2).mean())))

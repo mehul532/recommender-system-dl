@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 
 import pandas as pd
+import torch
 
 from src.data import DatasetConfig, preprocess_movielens_1m
 from src.models import DeepRecommender
@@ -27,14 +28,18 @@ def test_deep_recommender_predict_returns_bounded_scores() -> None:
         num_movies=2,
         embedding_dim=8,
         hidden_dim=16,
+        dropout=0.2,
         batch_size=2,
         epochs=2,
+        early_stopping_patience=2,
     ).fit(train_ratings=ratings, val_ratings=ratings)
 
     predictions = model.predict(ratings)
 
     assert len(predictions) == len(ratings)
     assert predictions.between(1.0, 5.0).all()
+    assert isinstance(model.model.mlp[2], torch.nn.Dropout)
+    assert model.model.mlp[2].p == 0.2
 
 
 def test_run_deep_experiments_saves_checkpoint_and_report(tmp_path, capsys) -> None:
@@ -45,6 +50,7 @@ def test_run_deep_experiments_saves_checkpoint_and_report(tmp_path, capsys) -> N
         create_processed_dir=False,
     )
     preprocess_movielens_1m(dataset_config)
+    _write_baseline_report_fixture(tmp_path / "reports")
 
     training_config = DeepTrainingConfig(
         dataset=dataset_config,
@@ -53,8 +59,10 @@ def test_run_deep_experiments_saves_checkpoint_and_report(tmp_path, capsys) -> N
         checkpoint_name="deep_recommender_test.pt",
         embedding_dim=8,
         hidden_dim=16,
+        dropout=0.2,
         batch_size=4,
-        epochs=2,
+        epochs=8,
+        early_stopping_patience=2,
         learning_rate=1e-3,
         weight_decay=1e-5,
     )
@@ -63,25 +71,38 @@ def test_run_deep_experiments_saves_checkpoint_and_report(tmp_path, capsys) -> N
     captured = capsys.readouterr().out
     report_path = training_config.reports_dir / "deep_model_metrics.json"
     checkpoint_path = training_config.models_dir / training_config.checkpoint_name
+    comparison_report_path = training_config.reports_dir / "model_comparison.json"
 
     assert checkpoint_path.exists()
     assert report_path.exists()
+    assert comparison_report_path.exists()
 
     with report_path.open("r", encoding="utf-8") as report_file:
         saved_report = json.load(report_file)
+    with comparison_report_path.open("r", encoding="utf-8") as comparison_file:
+        comparison_report = json.load(comparison_file)
 
     assert saved_report == report
     assert saved_report["data_summary"]["train_ratings"] == 16
+    assert saved_report["config"]["dropout"] == 0.2
+    assert saved_report["config"]["early_stopping_patience"] == 2
     assert "rmse" in saved_report["validation"]
     assert "rmse" in saved_report["test"]
     assert saved_report["checkpoint_path"] == str(checkpoint_path)
     assert saved_report["best_epoch"] >= 1
+    assert "stopped_early" in saved_report
+
+    assert comparison_report["baseline_user_item_bias"]["validation_rmse"] == 0.91
+    assert comparison_report["deep_model"]["validation_rmse"] == saved_report["validation"]["rmse"]
+    assert "validation" in comparison_report["summary"]
 
     assert "Deep model training complete" in captured
     assert "validation RMSE:" in captured
     assert "test RMSE:" in captured
+    assert "saved comparison report:" in captured
     assert f"saved checkpoint: {checkpoint_path}" in captured
     assert f"saved report: {report_path}" in captured
+    assert f"saved comparison report: {comparison_report_path}" in captured
 
 
 def _write_sample_movielens_files(
@@ -137,3 +158,19 @@ def _write_sample_movielens_files(
     )
 
     return DatasetConfig(raw_dir=raw_dir, processed_dir=processed_dir)
+
+
+def _write_baseline_report_fixture(reports_dir) -> None:
+    """Create a minimal baseline report fixture for comparison testing."""
+
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    baseline_report = {
+        "baselines": {
+            "user_item_bias": {
+                "validation": {"rmse": 0.91},
+                "test": {"rmse": 0.93},
+            }
+        }
+    }
+    with (reports_dir / "baseline_metrics.json").open("w", encoding="utf-8") as report_file:
+        json.dump(baseline_report, report_file, indent=2)
