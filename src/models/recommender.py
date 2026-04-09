@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 
 @dataclass(frozen=True)
@@ -23,9 +27,9 @@ class HybridRecommender:
 
     def fit(
         self,
-        ratings: list[dict[str, object]],
-        movies: list[dict[str, object]],
-        users: list[dict[str, object]],
+        ratings: pd.DataFrame,
+        movies: pd.DataFrame,
+        users: pd.DataFrame,
     ) -> None:
         """Record basic dataset counts as placeholder training state."""
 

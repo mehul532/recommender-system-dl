@@ -18,7 +18,7 @@ class TrainingConfig:
 
 
 def train_model(config: TrainingConfig | None = None) -> HybridRecommender:
-    """Wire the data and model layers together with placeholder behavior."""
+    """Wire the loaded pandas datasets into the placeholder model."""
 
     active_config = config or TrainingConfig()
     ratings = load_ratings(active_config.dataset)

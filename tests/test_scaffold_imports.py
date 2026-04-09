@@ -1,7 +1,13 @@
 """Smoke tests for the starter project scaffold."""
 
 from src.app import run_app
-from src.data import DatasetConfig, load_movies, load_ratings, load_users
+from src.data import (
+    DatasetConfig,
+    load_movies,
+    load_ratings,
+    load_users,
+    preprocess_movielens_1m,
+)
 from src.inference import load_model, recommend_for_user
 from src.models import HybridRecommender, Recommendation
 from src.training import TrainingConfig, train_model
@@ -17,6 +23,7 @@ def test_public_symbols_are_importable() -> None:
     assert callable(load_ratings)
     assert callable(load_movies)
     assert callable(load_users)
+    assert callable(preprocess_movielens_1m)
     assert callable(train_model)
     assert callable(load_model)
     assert callable(recommend_for_user)
