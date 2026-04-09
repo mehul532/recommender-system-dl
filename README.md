@@ -4,12 +4,30 @@ Starter structure for a hybrid deep learning recommender built on MovieLens 1M.
 
 The project is intentionally small: it gives you clean module boundaries for data loading, model code, training, inference, and a future Streamlit app without implementing the full system yet.
 
-## Baseline results
+## Real MovieLens 1M results
 
-Real MovieLens 1M baseline metrics from `reports/baseline_metrics.json`:
+Saved report artifacts:
+
+- `reports/baseline_metrics.json`
+- `reports/deep_model_metrics.json`
+- `reports/model_comparison.json`
+
+Dataset summary from the real run:
+
+- Ratings: 1,000,209
+- Users: 6,040
+- Movies: 3,883
+- Split sizes: train 805,443, validation 97,383, test 97,383
+
+Metrics:
 
 - Popularity Precision@10: val 0.0409, test 0.0399
 - User-item bias RMSE: val 0.9130, test 0.9306
+- Deep recommender RMSE: val 0.9179, test 0.9367
+
+Current comparison:
+
+- The user-item bias baseline is better than the current deep model by 0.0049 RMSE on validation and 0.0061 RMSE on test.
 
 ## Project layout
 
