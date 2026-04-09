@@ -1,0 +1,22 @@
+{
+  "baseline_user_item_bias": {
+    "validation_rmse": 0.9129529429262682,
+    "test_rmse": 0.930575488500039
+  },
+  "deep_model": {
+    "validation_rmse": 0.9178582638403707,
+    "test_rmse": 0.9367142215431016
+  },
+  "rmse_delta": {
+    "validation": 0.004905320914102562,
+    "test": 0.006138733043062561
+  },
+  "better_model": {
+    "validation": "baseline_user_item_bias",
+    "test": "baseline_user_item_bias"
+  },
+  "summary": {
+    "validation": "On validation, the baseline user-item bias model is better by 0.0049 RMSE (0.9130 vs 0.9179).",
+    "test": "On test, the baseline user-item bias model is better by 0.0061 RMSE (0.9306 vs 0.9367)."
+  }
+}
