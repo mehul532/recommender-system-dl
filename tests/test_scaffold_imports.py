@@ -14,6 +14,7 @@ from src.data import (
 from src.inference import load_model, recommend_for_user
 from src.models import (
     DeepRecommender,
+    HybridDeepRecommender,
     HybridRecommender,
     PopularityRecommender,
     Recommendation,
@@ -21,9 +22,11 @@ from src.models import (
 )
 from src.training import (
     DeepTrainingConfig,
+    HybridTrainingConfig,
     TrainingConfig,
     run_baseline_experiments,
     run_deep_experiments,
+    run_hybrid_experiments,
     train_model,
 )
 
@@ -34,8 +37,10 @@ def test_public_symbols_are_importable() -> None:
     assert DatasetConfig is not None
     assert ProcessedMovieLensData is not None
     assert DeepTrainingConfig is not None
+    assert HybridTrainingConfig is not None
     assert TrainingConfig is not None
     assert DeepRecommender is not None
+    assert HybridDeepRecommender is not None
     assert HybridRecommender is not None
     assert PopularityRecommender is not None
     assert Recommendation is not None
@@ -48,6 +53,7 @@ def test_public_symbols_are_importable() -> None:
     assert callable(preprocess_movielens_1m)
     assert callable(run_baseline_experiments)
     assert callable(run_deep_experiments)
+    assert callable(run_hybrid_experiments)
     assert callable(train_model)
     assert callable(load_model)
     assert callable(recommend_for_user)

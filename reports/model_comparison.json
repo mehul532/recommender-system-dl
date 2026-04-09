@@ -1,7 +1,68 @@
 {
+  "available_models": [
+    "baseline_user_item_bias",
+    "deep_model",
+    "hybrid_model"
+  ],
   "baseline_user_item_bias": {
     "validation_rmse": 0.9129529429262682,
     "test_rmse": 0.930575488500039
+  },
+  "comparisons": {
+    "deep_vs_baseline": {
+      "left_model": "baseline_user_item_bias",
+      "right_model": "deep_model",
+      "validation": {
+        "left_rmse": 0.9129529429262682,
+        "right_rmse": 0.9178582638403707,
+        "rmse_delta": 0.004905320914102562,
+        "better_model": "baseline_user_item_bias",
+        "summary": "On validation, the baseline user-item bias model is better by 0.0049 RMSE (0.9130 vs 0.9179) compared with the deep model."
+      },
+      "test": {
+        "left_rmse": 0.930575488500039,
+        "right_rmse": 0.9367142215431016,
+        "rmse_delta": 0.006138733043062561,
+        "better_model": "baseline_user_item_bias",
+        "summary": "On test, the baseline user-item bias model is better by 0.0061 RMSE (0.9306 vs 0.9367) compared with the deep model."
+      }
+    },
+    "hybrid_vs_baseline": {
+      "left_model": "baseline_user_item_bias",
+      "right_model": "hybrid_model",
+      "validation": {
+        "left_rmse": 0.9129529429262682,
+        "right_rmse": 0.9149136762571034,
+        "rmse_delta": 0.0019607333308352404,
+        "better_model": "baseline_user_item_bias",
+        "summary": "On validation, the baseline user-item bias model is better by 0.0020 RMSE (0.9130 vs 0.9149) compared with the hybrid model."
+      },
+      "test": {
+        "left_rmse": 0.930575488500039,
+        "right_rmse": 0.9322586254920171,
+        "rmse_delta": 0.0016831369919780848,
+        "better_model": "baseline_user_item_bias",
+        "summary": "On test, the baseline user-item bias model is better by 0.0017 RMSE (0.9306 vs 0.9323) compared with the hybrid model."
+      }
+    },
+    "hybrid_vs_deep": {
+      "left_model": "deep_model",
+      "right_model": "hybrid_model",
+      "validation": {
+        "left_rmse": 0.9178582638403707,
+        "right_rmse": 0.9149136762571034,
+        "rmse_delta": -0.002944587583267322,
+        "better_model": "hybrid_model",
+        "summary": "On validation, the hybrid model is better by 0.0029 RMSE (0.9149 vs 0.9179) compared with the deep model."
+      },
+      "test": {
+        "left_rmse": 0.9367142215431016,
+        "right_rmse": 0.9322586254920171,
+        "rmse_delta": -0.004455596051084476,
+        "better_model": "hybrid_model",
+        "summary": "On test, the hybrid model is better by 0.0045 RMSE (0.9323 vs 0.9367) compared with the deep model."
+      }
+    }
   },
   "deep_model": {
     "validation_rmse": 0.9178582638403707,
@@ -18,5 +79,13 @@
   "summary": {
     "validation": "On validation, the baseline user-item bias model is better by 0.0049 RMSE (0.9130 vs 0.9179).",
     "test": "On test, the baseline user-item bias model is better by 0.0061 RMSE (0.9306 vs 0.9367)."
+  },
+  "hybrid_model": {
+    "validation_rmse": 0.9149136762571034,
+    "test_rmse": 0.9322586254920171
+  },
+  "best_model": {
+    "validation": "baseline_user_item_bias",
+    "test": "baseline_user_item_bias"
   }
 }

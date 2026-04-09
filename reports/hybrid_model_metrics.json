@@ -1,0 +1,28 @@
+{
+  "config": {
+    "embedding_dim": 64,
+    "hidden_dim": 128,
+    "dropout": 0.1,
+    "batch_size": 1024,
+    "epochs": 10,
+    "early_stopping_patience": 2,
+    "learning_rate": 0.001,
+    "weight_decay": 1e-05
+  },
+  "data_summary": {
+    "train_ratings": 805443,
+    "validation_ratings": 97383,
+    "test_ratings": 97383,
+    "num_users": 6040,
+    "num_movies": 3883
+  },
+  "validation": {
+    "rmse": 0.9149136762571034
+  },
+  "test": {
+    "rmse": 0.9322586254920171
+  },
+  "best_epoch": 10,
+  "stopped_early": false,
+  "checkpoint_path": "models/hybrid_recommender.pt"
+}
