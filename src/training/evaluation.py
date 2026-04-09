@@ -3,14 +3,22 @@
 from __future__ import annotations
 
 from math import sqrt
+from typing import Protocol
 
 import pandas as pd
 
-from src.models import PopularityRecommender, UserItemBiasRecommender
+from src.models import PopularityRecommender
+
+
+class RatingPredictor(Protocol):
+    """Minimal protocol for models that can score a ratings DataFrame."""
+
+    def predict(self, ratings: pd.DataFrame) -> pd.Series:
+        """Return one prediction per ratings row."""
 
 
 def evaluate_rmse(
-    model: UserItemBiasRecommender,
+    model: RatingPredictor,
     ratings: pd.DataFrame,
 ) -> dict[str, float | int]:
     """Evaluate RMSE for explicit rating prediction."""
