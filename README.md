@@ -10,6 +10,7 @@ Saved report artifacts:
 
 - `reports/baseline_metrics.json`
 - `reports/deep_model_metrics.json`
+- `reports/hybrid_model_metrics.json`
 - `reports/model_comparison.json`
 
 Dataset summary from the real run:
@@ -19,15 +20,18 @@ Dataset summary from the real run:
 - Movies: 3,883
 - Split sizes: train 805,443, validation 97,383, test 97,383
 
-Metrics:
+RMSE summary:
 
-- Popularity Precision@10: val 0.0409, test 0.0399
-- User-item bias RMSE: val 0.9130, test 0.9306
-- Deep recommender RMSE: val 0.9179, test 0.9367
+| Model | Validation | Test |
+| --- | ---: | ---: |
+| Bias baseline | 0.9130 | 0.9306 |
+| Deep model | 0.9179 | 0.9367 |
+| Hybrid model | 0.9149 | 0.9323 |
 
 Current comparison:
 
-- The user-item bias baseline is better than the current deep model by 0.0049 RMSE on validation and 0.0061 RMSE on test.
+- The bias baseline is still the best model on both validation and test.
+- The hybrid model improves on the deep model but does not yet beat the bias baseline.
 
 ## Project layout
 
