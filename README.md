@@ -1,37 +1,49 @@
-# Movie Recommendation System Scaffold
+# Hybrid Deep-Learning Recommender (MovieLens 1M)
 
-Starter structure for a hybrid deep learning recommender built on MovieLens 1M.
+A complete recommender system on MovieLens 1M (1,000,209 ratings, 6,040 users, 3,883 movies): bias baselines, a PyTorch deep embedding model, and a hybrid model, compared under one offline evaluation protocol with a Streamlit demo app.
 
-The project is intentionally small: it gives you clean module boundaries for data loading, model code, training, inference, and a future Streamlit app without implementing the full system yet.
+## Results
 
-## Real MovieLens 1M results
+Held-out evaluation (train 805,443 / validation 97,383 / test 97,383):
 
-Saved report artifacts:
-
-- `reports/baseline_metrics.json`
-- `reports/deep_model_metrics.json`
-- `reports/hybrid_model_metrics.json`
-- `reports/model_comparison.json`
-
-Dataset summary from the real run:
-
-- Ratings: 1,000,209
-- Users: 6,040
-- Movies: 3,883
-- Split sizes: train 805,443, validation 97,383, test 97,383
-
-RMSE summary:
-
-| Model | Validation | Test |
+| Model | Validation RMSE | Test RMSE |
 | --- | ---: | ---: |
 | Bias baseline | 0.9130 | 0.9306 |
 | Deep model | 0.9179 | 0.9367 |
 | Hybrid model | 0.9149 | 0.9323 |
 
-Current comparison:
+The honest finding: the bias baseline still wins on both validation and test. The hybrid model improves on the deep model but does not beat the baseline — a useful reminder that well-tuned simple baselines are hard to beat on dense rating data. Full metrics are tracked in `reports/`: `baseline_metrics.json`, `deep_model_metrics.json`, `hybrid_model_metrics.json`, `model_comparison.json`.
 
-- The bias baseline is still the best model on both validation and test.
-- The hybrid model improves on the deep model but does not yet beat the bias baseline.
+## Architecture
+
+- `src/data/` — MovieLens 1M parsing, dataset config, and train/validation/test splits (`dataset.py`)
+- `src/models/` — popularity and user-item bias baselines (`baselines.py`), deep embedding model (`deep_recommender.py`), hybrid model (`hybrid_recommender.py`), shared interface (`recommender.py`)
+- `src/training/` — training entry points (`train.py`, `deep_train.py`, `hybrid_train.py`), RMSE / precision@k evaluation (`evaluation.py`), model comparison (`comparison.py`)
+- `src/inference/` — prediction and per-user recommendation helpers (`predict.py`)
+- `src/app/` — Streamlit demo app (`streamlit_app.py`)
+
+## Quick start
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+pytest
+```
+
+Train each model and write its report artifact to `reports/`:
+
+```bash
+python -m src.training.train          # popularity + bias baselines
+python -m src.training.deep_train     # deep embedding model
+python -m src.training.hybrid_train   # hybrid model
+```
+
+Launch the Streamlit demo:
+
+```bash
+streamlit run src/app/streamlit_app.py
+```
 
 ## Project layout
 
@@ -52,26 +64,6 @@ Current comparison:
 └── tests/
 ```
 
-## Quick start
+## License
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-pytest
-```
-
-## What each module is for
-
-- `src/data`: dataset paths and data loading stubs.
-- `src/models`: recommender model interface and placeholder behavior.
-- `src/training`: training entrypoint that wires the data and model layers together.
-- `src/inference`: prediction and recommendation helpers.
-- `src/app`: Streamlit app scaffold.
-
-## Next steps
-
-- Replace placeholder data loaders with MovieLens 1M parsing.
-- Implement the hybrid model architecture.
-- Add evaluation metrics and experiment tracking.
-- Expand the Streamlit app once inference is real.
+MIT. See [LICENSE](LICENSE).
