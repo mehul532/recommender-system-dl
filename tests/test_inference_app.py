@@ -347,7 +347,8 @@ class FakeColumn:
     captions: list[str] = field(default_factory=list)
     markdowns: list[str] = field(default_factory=list)
 
-    def metric(self, label, value) -> None:
+    def metric(self, label, value, help=None) -> None:
+        _ = help
         self.metrics.append((label, value))
 
     def caption(self, label) -> None:
@@ -384,8 +385,8 @@ class FakeSidebar:
         _ = (format_func, help)
         return options[index]
 
-    def slider(self, _label, min_value, max_value, value):
-        _ = (min_value, max_value)
+    def slider(self, _label, min_value, max_value, value, help=None):
+        _ = (min_value, max_value, help)
         return value
 
 

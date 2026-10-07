@@ -121,6 +121,7 @@ def run_app(streamlit_module: Any | None = None) -> None:
         "Model",
         options=available_models,
         format_func=lambda family: MODEL_LABELS[family],
+        help="Select the recommender algorithm (Baseline Popularity, Deep Model, or Hybrid Model).",
     )
     user_ids = data.users["user_id"].astype("int64").tolist()
     selected_user_id = int(
@@ -131,7 +132,15 @@ def run_app(streamlit_module: Any | None = None) -> None:
             help="Type in the select box to search for a user ID.",
         )
     )
-    top_k = int(st.sidebar.slider("Top N", 5, 20, 10))
+    top_k = int(
+        st.sidebar.slider(
+            "Top N",
+            5,
+            20,
+            10,
+            help="Number of unseen movie recommendations to generate.",
+        )
+    )
 
     user_profile = _build_user_profile(data, selected_user_id)
     left_column, right_column = st.columns(2)
@@ -336,10 +345,12 @@ def _render_selected_model_metrics(
     metric_columns[0].metric(
         selected_metrics["validation_label"],
         selected_metrics["validation_value"],
+        help="Model metric computed on the validation split.",
     )
     metric_columns[1].metric(
         selected_metrics["test_label"],
         selected_metrics["test_value"],
+        help="Model metric computed on the test split.",
     )
 
     checkpoint_path = selected_metrics.get("checkpoint_path")
